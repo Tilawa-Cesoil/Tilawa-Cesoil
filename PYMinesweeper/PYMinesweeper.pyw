@@ -1,10 +1,21 @@
+'''
+PYMinesweeper
+一个用python和tkinter制作的扫雷游戏
+中心目标：以单文件形式完成全部功能，只导入必须的标准库以及非标准库（pygame用于播放音乐）
+作者：Tilawa Cesoil
+
+'''
 import time
 firsttime=time.time()
 # 窗口创建
-import tkinter as tk
+import os
+path=os.path.split(os.path.realpath(__file__))[0]
+os.chdir(path)
+import tkinter as tk,tkinter.messagebox as tkmessage
 window=tk.Tk()
 window.title("PYMinesweeper By Tilawa Cesoil")
 window.geometry('1355x325')
+window.iconphoto(True,tk.PhotoImage(file=path+'/title.png'))
 # 加载界面
 loadingword=tk.StringVar()
 loading=tk.Label(window,textvariable=loadingword,bg='black',fg='white',bd=0,font=(None,20,''),justify='left',anchor='nw')
@@ -13,20 +24,24 @@ window.update_idletasks()
 # 重定向输出流到指定tkinter组件
 import sys
 class Redirect_stdout:
-    def write(self,words):
-        for word in words:
+    def write(self,word):
             loadingword.set(loadingword.get()+word)
-            time.sleep(0.01)
             window.update_idletasks()
 output=sys.stdout
 sys.stdout=Redirect_stdout()
+# 导入标准库模块和资源，并将其显示在屏幕上
 splitline='—'*50
-print(splitline+'\nThe game is loading...\nThese are greeting messages from the game.\nAudio Engine:',end='')
-# 导入标准库模块和资源
-import random,pickle,threading,socket,PIL,PIL.Image,PIL.ImageTk,tkinter.messagebox as tkmessage
+print(splitline)
+print('The game is loading...')
+print('These are greeting messages from the game.')
+print('Audio Engine:',end='')
 from pygame import mixer
 mixer.init()
-print(f'GUI Engine:Tkinter({tk.TkVersion})\nImage Engine:PIL({PIL.__version__})\nPython version:{sys.version}')
+import random,pickle,threading,socket
+print(f'GUI Engine:Tkinter({tk.TkVersion})')
+import PIL,PIL.Image,PIL.ImageTk
+print(f'Image Engine:PIL({PIL.__version__})')
+
 # 无限迭代
 sys.setrecursionlimit(1000000)
 # 慢速显示用于排查问题，真实游戏中无用
@@ -34,7 +49,7 @@ def slowcheck():
     window.update_idletasks()
     time.sleep(0.1)
 
-def fastdata(awidth=9,aheight=9,abomb=10):
+def fastdata(awidth=None,aheight=None,abomb=None):
     global dif,width,height,bomb,space
     # 1、2、3表示简单、一般、困难，4表示自定义，5表示挑战模式,6表示创造模式
     if dif==1:width,height,bomb=9,9,10
@@ -44,8 +59,6 @@ def fastdata(awidth=9,aheight=9,abomb=10):
     space=width*height
 
 # 读取存档文件数据
-import os
-path=os.path.split(os.path.realpath(__file__))[0]   #path='.'
 try:
     with open(path+'/savefile','rb') as file:filedata=pickle.load(file)
 # 没有就创建新存档
@@ -64,7 +77,7 @@ volume=filedata[7]
 ifplaybgm=filedata[8]
 del filedata
 fastdata()
-version=1.3
+version=2.1
 # 存档，同时自动更新全局变量
 def save():
     threading.Thread(target=save_func,daemon=True).start()
@@ -85,7 +98,7 @@ def rgb(r:int,g:int,b:int):return '#%02x%02x%02x' % (r,g,b)
 # 判断时间为白天还是黑夜
 def ifday():
     t=int(time.strftime('%H'))
-    if t>=7 and t<18:return True
+    if t>6 and t<18:return True
     else:return False
 
 # 颜色字体组合模式
@@ -326,16 +339,13 @@ def gamestart(x:int,y:int):
     global startgame,playmap
     startgame=True
     resetbomb(bomb)
-    l=around(x,y)
-    l.append((x,y))
     # 随机布雷
-    mine=0
-    while mine<bomb:
-        ax=random.randint(0,width-1)
-        ay=random.randint(0,height-1)
-        if ((ax,ay) not in l) and get_content(ax,ay)!=9:
-            playmap[ay][ax]=9
-            mine+=1
+    if space>9 and space-bomb>8:l=around(x,y)
+    else:l=[]
+    l.append((x,y))
+    choice=random.sample(tuple(set(range(0,space))-set((ay*width+ax for ax,ay in l))),bomb)
+    for num in choice:
+        playmap[num//width][num%width]=9
     # 布置数字
     for ay in range(height):
         for ax in range(width):
@@ -404,10 +414,10 @@ def get_item(x:int,y:int):
     return cellmap[y][x]
 
 def around(x:int,y:int):
-    l=[(x-1,y-1),(x,y-1),(x+1,y-1),(x-1,y),(x+1,y),(x-1,y+1),(x,y+1),(x+1,y+1)]
+    l=((x-1,y-1),(x,y-1),(x+1,y-1),(x-1,y),(x+1,y),(x-1,y+1),(x,y+1),(x+1,y+1))
     a=[]
     for coord in l:
-        if 0<=coord[0]<=width-1 and 0<=coord[1]<=height-1:a.append(coord)
+        if -1<coord[0]<width and -1<coord[1]<height:a.append(coord)
     return a
 
 # 周围雷数
@@ -574,20 +584,20 @@ class Changedif:
         self.custommode.pack(side='left')
         self.customtip=tk.Label(self.custom,text='宽度： 高度： 雷数： ',bg=bg,fg=fg,font=font)
         self.customtip.pack(side='top',anchor='w')
-        self.width,self.height,self.bomb=(tk.IntVar()for _ in range(3))
+        self.width,self.height,self.bomb=(tk.Variable()for _ in range(3))
         self.entrylist=[
             tk.Spinbox(self.custom,bg=bg,fg=fg,font=font,width=5,disabledbackground='gray',from_=2,to=100,textvariable=self.width),
             tk.Spinbox(self.custom,bg=bg,fg=fg,font=font,width=5,disabledbackground='gray',from_=2,to=100,textvariable=self.height),
-            tk.Spinbox(self.custom,bg=bg,fg=fg,font=font,width=5,disabledbackground='gray',from_=0,to=self.width.get()*self.height.get(),textvariable=self.bomb)]
+            tk.Spinbox(self.custom,bg=bg,fg=fg,font=font,width=5,disabledbackground='gray',from_=1,to=3,textvariable=self.bomb)]
         for item in self.entrylist:
-            item.bind('<KeyPress>',self.inputdata)
+            item.bind('<KeyPress>',lambda event:self.inputdata())
             item.pack(side='left')
-        self.legal=False
-        self.customwarn=tk.Message(self.custom,bg=bg,fg=fg,font=(font[0],int(font[1]*2/3),font[2]))
+        self.warn=tk.StringVar()
+        self.customwarn=tk.Message(self.custom,width=90,bg=bg,fg=fg,font=(font[0],int(font[1]*0.5),font[2]),textvariable=self.warn)
         self.customwarn.pack(side='left')
         self.custom.pack(anchor='w')
         self.ifcustom()
-
+        self.legal=False
         self.challengemode=tk.Radiobutton(self.root,variable=self.dif,value=5,bg=bg,fg=fg,font=font,bd=bd,text='挑战：',command=self.ifcustom)
         self.challengemode.pack(anchor='w')
         self.okbutton=tk.Button(self.root,text='选好啦',bg=bg,fg=fg,font=font,bd=bd,relief='groove',command=self.delete)
@@ -599,9 +609,10 @@ class Changedif:
         if self.chosen:
             dif=self.dif.get()
             if dif==4:
-                if self.legal:fastdata(self.width.get(),self.height.get(),self.bomb.get())
+                if self.legal:fastdata(int(self.width.get()),int(self.height.get()),int(self.bomb.get()))
                 else:
                     tkmessage.showwarning('提示','无法解析自定义输入，已自动将难度改为简单。')
+                    dif=1
                     fastdata()
             else:fastdata()
             overgame=True
@@ -616,46 +627,37 @@ class Changedif:
             for item in self.entrylist:item.config(state='normal')
         else:
             for item in self.entrylist:item.config(state='disabled')
-            self.customwarn.config(text='')
+            self.warn.set('')
 
     def inputdata_infunc(self):
+        widthlegal,heightlegal=False,False
         try:
-            self.entrylist[2].config(to=self.width.get()*self.height.get())
-            if self.width.get():
-                if self.width.get()<2:
-                    self.legal=False
-                    self.customwarn.config(text='宽度最小为2')
-                elif self.width.get()>100:
-                    self.legal=False
-                    self.customwarn.config(text='宽度最大为100')
+            awidth=int(self.width.get())
+            if awidth<2:self.width.set(2)
+            elif awidth>100:self.width.set(100)
+            else:widthlegal=True
+            aheight=int(self.height.get())
+            if aheight<2:self.height.set(2)
+            elif aheight>100:self.height.set(100)
+            else:heightlegal=True
+            abomb=int(self.bomb.get())
+            if not widthlegal:self.warn.set('长度输入范围为2~100')
+            elif not heightlegal:self.warn.set('宽度输入范围为2~100')
+            else:
+                self.entrylist[2].config(to=awidth*aheight-1)
+                if abomb<1:
+                    self.bomb.set(1)
+                    self.warn.set('不能没有雷')
+                elif abomb>awidth*aheight-1:
+                    self.bomb.set(awidth*aheight-1)
+                    self.warn.set('雷数超过总格数')
                 else:
+                    threading.Timer(1,lambda:self.warn.set('')).start()
                     self.legal=True
-                    self.customwarn.config(text='')
-            elif self.height.get():
-                if self.height.get()<2:
-                    self.legal=False
-                    self.customwarn.config(text='高度最小为2')
-                elif self.height.get()>100:
-                    self.legal=False
-                    self.customwarn.config(text='高度最大为100')
-                else:
-                    self.legal=True
-                    self.customwarn.config(text='')
-            elif self.bomb.get():
-                if self.bomb.get()>self.width.get()*self.height.get():
-                    self.legal=False
-                    self.customwarn.config(text='雷数多于格数')
-                else:
-                    self.legal=True
-                    self.customwarn.config(text='')
-        except:
-            self.legal=False
-            self.customwarn.config(text='请输入数字')
+        except:self.warn.set('请输入数字')
     
-    def inputdata(self,event):
-        task=threading.Timer(0.1,self.inputdata_infunc)
-        task.daemon=True
-        task.start()
+    def inputdata(self):
+        threading.Timer(0.1,self.inputdata_infunc).start()
 
 # 游戏设置
 class Setting:
@@ -879,9 +881,7 @@ def movefocus(event=None,position=None):
         elif event.state==12:item.flag()
 
 focuscoord=[0,0]
-
-for key in ('Up','Down','Left','Right','Return','Control Return','space','Control space'):
-    window.bind(f'<{key}>',movefocus)
+window.bind(f'<KeyPress>',movefocus)
 
 
 # ————————————————————
@@ -941,7 +941,8 @@ def undo(reset):
 # 互联网联机
 # ————————————————————
 
-
+server=socket.socket()
+client=socket.socket()
 
 
 # ————————————————————
@@ -950,25 +951,31 @@ def undo(reset):
 
 # 关闭加载界面动画
 endtime=time.time()
-print(f'Loading time:{endtime-firsttime} seconds.\nLoading succeed!\nWelcome to play PYMinesweeper by Tilawa Cesoil!(version:{version})\n'+splitline)
+print(f'Python version:{sys.version}')
+print(f'Loading time:{endtime-firsttime} seconds.Loading succeed!')
+print(f'Welcome to play PYMinesweeper(version:{version}) by Tilawa Cesoil!(Press Esc to skip)')
+print('https://github.com/Tilawa-Cesoil/Tilawa-Cesoil/tree/main/PYMinesweeper')
+print(splitline)
 sys.stdout=output
-# 播放bgm
+def quitanimation():
+    global ifquit
+    ifquit=True
+    window.unbind('<Escape>',id)
+    window.bind('<Escape>',lambda event:window.quit())
+id=window.bind('<Escape>',lambda event:quitanimation())
+ifquit=False
 if ifplaybgm:mixer.music.play(-1)
-n=range(3)
-nc=list((255,255,255))
-times=[(0,0,0)[i]-(255,255,255)[i] for i in n]
-maintime=max(map(abs,times))
-steps=[int(times[i]/maintime) for i in n]
-for _ in range(maintime):
-    for i in n:nc[i]+=steps[i]
-    loading.config(fg=rgb(nc[0],nc[1],nc[2]))
-    window.update_idletasks()
+loadingcolor=[255,255,255]
+for _ in range(255):
+    if ifquit:break
+    for i in range(3):loadingcolor[i]-=1
+    loading.config(fg=rgb(loadingcolor[0],loadingcolor[1],loadingcolor[2]))
+    window.update()
     time.sleep(0.015)
-for i in n:nc[i]=(0,0,0)[i]
-loading.config(fg=rgb(nc[0],nc[1],nc[2]))
+loading.config(fg=rgb(0,0,0))
 window.update_idletasks()
 loading.destroy()
-del loading,loadingword,output,firsttime,endtime,splitline,version,n,nc,times,maintime,steps,Redirect_stdout
+del loading,loadingword,output,firsttime,endtime,splitline,Redirect_stdout,ifquit,id,loadingcolor,i
 window.config(bd=bd)
 window.geometry('')
 resettime()
